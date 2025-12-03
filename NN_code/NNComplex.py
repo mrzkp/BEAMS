@@ -7,6 +7,21 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+
+"""
+MODEL ARCH
+Modified from NNSimple.py
+
+Same Input Layer.
+Hidden layer size 256, batch normalization, ReLu, Dropout.
+Two parallel branches are created for spatial and channel features of size 128.
+Each branch passes its output through an Attention Module. Sigmoid activation function that generates 'attention weights'. Output is scaled element-wise by attention weights.
+Outputs of both branches are concatenated back to form a 256 feature vector.
+Then pass the new vector through a series of 3 residual blocks and outputs a vector of 256.
+Adds the input of the block to the output of the last batch normalization layer.
+Finally the classifier block, fully connected layers mapping 256 -> 128 -> 64 -> 8.
+""" 
+
 class MmWaveDataset(Dataset):
     def __init__(self, features, labels, transform=None):
         self.features = torch.FloatTensor(features)
@@ -70,7 +85,6 @@ class AdvancedMmWaveNN(nn.Module):
         self.hidden_size = 256
         self.num_residual_blocks = 3
         
-        # Initial feature extraction
         self.feature_extraction = nn.Sequential(
             nn.Linear(input_size, self.hidden_size),
             nn.BatchNorm1d(self.hidden_size),
@@ -78,7 +92,6 @@ class AdvancedMmWaveNN(nn.Module):
             nn.Dropout(0.2)
         )
         
-        # Parallel processing branches
         self.spatial_branch = self._create_branch(self.hidden_size // 2)
         self.channel_branch = self._create_branch(self.hidden_size // 2)
         
@@ -181,10 +194,8 @@ def evaluate_model(model, test_loader, criterion, device):
     return running_loss / len(test_loader), 100. * correct / total, all_preds, all_labels
 
 def plot_training_history(train_losses, train_acc, val_losses, val_acc, save_path='training_history_advanced.png'):
-    plt.style.use('seaborn')
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
     
-    # Plot losses
     ax1.plot(train_losses, label='Training Loss', color='blue', alpha=0.7)
     ax1.plot(val_losses, label='Validation Loss', color='red', alpha=0.7)
     ax1.set_title('Training and Validation Loss')
@@ -193,7 +204,6 @@ def plot_training_history(train_losses, train_acc, val_losses, val_acc, save_pat
     ax1.legend()
     ax1.grid(True)
     
-    # Plot accuracies
     ax2.plot(train_acc, label='Training Accuracy', color='blue', alpha=0.7)
     ax2.plot(val_acc, label='Validation Accuracy', color='red', alpha=0.7)
     ax2.set_title('Training and Validation Accuracy')
@@ -208,7 +218,6 @@ def plot_training_history(train_losses, train_acc, val_losses, val_acc, save_pat
 
 
 def main():
-    # Load and preprocess data
     X = np.load('NN_code/mmwave_features.npy')
     y = np.load('NN_code/mmwave_labels.npy')
 
@@ -217,7 +226,6 @@ def main():
 
     dataset = MmWaveDataset(X_scaled, y)
     
-    # Split data
     train_size = int(0.6 * len(dataset))
     val_size = int(0.2 * len(dataset))
     test_size = len(dataset) - train_size - val_size
@@ -231,7 +239,6 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
     
-    # Setup device and model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = AdvancedMmWaveNN(input_size=X.shape[1]).to(device)
     
@@ -240,7 +247,6 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
     
-    # Training loop
     num_epochs = 5
     train_losses = []
     train_accuracies = []
@@ -250,20 +256,16 @@ def main():
     
     print(f"Training on {device}")
     for epoch in range(num_epochs):
-        # Train
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         train_losses.append(train_loss)
         train_accuracies.append(train_acc)
         
-        # Validate
         val_loss, val_acc, _, _ = evaluate_model(model, val_loader, criterion, device)
         val_losses.append(val_loss)
         val_accuracies.append(val_acc)
         
-        # Learning rate scheduling
         scheduler.step(val_loss)
         
-        # Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save({
@@ -279,13 +281,11 @@ def main():
             print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
             print('-' * 50)
     
-    # Plot training history
     plot_training_history(train_losses, train_accuracies, val_losses, val_accuracies)
     
-    # Load best model and evaluate on test set
     checkpoint = torch.load('best_mmwave_model_advanced.pth')
     model.load_state_dict(checkpoint['model_state_dict'])
-    test_loss, test_acc, y_pred, y_true = evaluate_model(model, test_loader, criterion, device)
+    _, test_acc, _, _ = evaluate_model(model, test_loader, criterion, device)
     
     print(f'\nBest Model Test Accuracy: {test_acc:.2f}%')
 

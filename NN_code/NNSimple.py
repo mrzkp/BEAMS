@@ -5,6 +5,19 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
+### MODEL ARCH ###
+
+"""
+Input Layer with N_features = 2L + 2L + 2(N_MT * N_SBS) = 4 + 4 + 4 + 128 = 140
+“ As we have L propagation paths, there are 2+4L random real values as the elements in each training sample, which includes the transmit power, the path loss, 2L azimuth angles of AoA and AoD, 2L real and imaginary parts of the complex gain”
+Includes AoA, AoD, gains, and the full channel matrix H.
+First hidden layer size 128, ReLu, Dropout.
+Second hidden layer size 64, ReLu, Dropout.
+Output layer (maps to beam).
+Fully connected linear.
+Propagates forward...
+Repeats...
+""" 
 class MmWaveDataset(Dataset):
     def __init__(self, features, labels, transform=None):
         self.features = torch.FloatTensor(features)

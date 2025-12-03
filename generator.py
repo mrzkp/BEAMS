@@ -1,33 +1,46 @@
 import numpy as np
 from scipy import constants
 
+"""
+Used to generate the dataset for NN and SMO.
+"""
+
+
+# System parameters as given in Table I
+SBS_DEN = 1e-4         # λS: 1 × 10−4m−2
+SBS_POWER_DB = 20      # PS: 20 dBm
+PATHS = 2              # L: 2 propagation paths
+NUM_MT_ANT = 2         # NMT: 2 MT antennas
+NUM_SBS_ANT = 32       # NSBS: 32 SBS antennas
+RADIUS = 100           # R: 100m radius
+CB_BEAMS = 8           # NC: 8 candidate vectors
+
 class MmWaveDatasetGenerator:
-    def __init__(self, num_samples=30000):
-        # System parameters as given in Table I
-        self.sbs_density = 1e-4        # λS: 1 × 10−4m−2
-        self.sbs_power_db = 20         # PS: 20 dBm
-        self.num_paths = 2             # L: 2 propagation paths
-        self.num_mt_antennas = 2       # NMT: 2 MT antennas
-        self.num_sbs_antennas = 32     # NSBS: 32 SBS antennas
-        self.radius = 100              # R: 100m radius
-        self.num_codebook_beams = 8    # NC: 8 candidate vectors
+    def __init__(self):
+        self.sbs_power_db = SBS_POWER_DB
+        self.num_paths = PATHS           
+        self.num_mt_antennas = NUM_MT_ANT
+        self.num_sbs_antennas = NUM_SBS_ANT
+        self.radius = RADIUS              
+        self.num_codebook_beams = CB_BEAMS
         
         self.sbs_power = 10 ** ((self.sbs_power_db - 30) / 10)  # Convert dBm to Watts
         
         self.num_sbs = int(np.floor(self.sbs_density * np.pi * self.radius**2))
         
-        self.frequency = 28e9          # 28 GHz (mmWave frequency)
+        self.frequency = 28e9              # 28 GHz (mmWave frequency)
         self.wavelength = constants.c / self.frequency
         self.k = 2 * np.pi / self.wavelength
         self.d_mt = self.wavelength / 2    # Half-wavelength antenna spacing
         self.d_sbs = self.wavelength / 2
         
         self.codebook = self._generate_codebook()
+        self.num_samples = 30_000
         
-        self.num_samples = num_samples
-        
+    """
+    Generate DFT-based codebook with NC=8 candidate vectors
+    """
     def _generate_codebook(self):
-        """Generate DFT-based codebook with NC=8 candidate vectors"""
         codebook = np.zeros((self.num_sbs_antennas, self.num_codebook_beams), dtype=complex)
         angles = np.linspace(-np.pi/2, np.pi/2, self.num_codebook_beams, endpoint=False)
         
@@ -38,8 +51,10 @@ class MmWaveDatasetGenerator:
         
         return codebook
 
+    """
+    Generate channel matrix H_S,k based on Saleh-Valenzuela model
+    """
     def _generate_channel(self):
-        """Generate channel matrix H_S,k based on Saleh-Valenzuela model"""
         aoa = np.random.uniform(-np.pi/2, np.pi/2, self.num_paths)
         aod = np.random.uniform(-np.pi/2, np.pi/2, self.num_paths)
         
@@ -65,7 +80,6 @@ class MmWaveDatasetGenerator:
         return H, aoa, aod, alpha
 
     def _calculate_snr(self, H, beam):
-        """Calculate SNR for given channel and beam"""
         noise_power = 1e-13
         H_reshaped = H.reshape(self.num_mt_antennas, self.num_sbs_antennas)
         received_signal = H_reshaped @ beam
@@ -73,7 +87,6 @@ class MmWaveDatasetGenerator:
         return received_power / noise_power
 
     def _find_optimal_beam(self, H):
-        """Find optimal beam from codebook that maximizes SNR"""
         snr_values = np.zeros(self.num_codebook_beams)
         
         for i in range(self.num_codebook_beams):
@@ -83,7 +96,6 @@ class MmWaveDatasetGenerator:
         return np.argmax(snr_values)
 
     def generate_dataset(self):
-        """Generate dataset with features and labels"""
         features = []
         labels = []
         
@@ -107,18 +119,15 @@ class MmWaveDatasetGenerator:
         return np.array(features), np.array(labels)
 
 def main():
-    generator = MmWaveDatasetGenerator(num_samples=30000)
-    
-    X, y = generator.generate_dataset()
+    generator = MmWaveDatasetGenerator() # 30_000 TS
+    features, labels = generator.generate_dataset()
     
     print("DEBUGGING")
     print(f"Dataset generated:")
-    print(f"Feature shape: {X.shape}")
-    print(f"Label shape: {y.shape}")
-    print(f"Number of unique beam indices: {len(np.unique(y))}")
+    print(f"Feature shape: {features.shape}")
+    print(f"Label shape: {labels.shape}")
     
-    np.save('mmwave_features.npy', X)
-    np.save('mmwave_labels.npy', y)
+    np.save('Naive_SVM/mmwave_dataset.npy', {'features': features, 'labels': labels})
 
 if __name__ == "__main__":
     main()
