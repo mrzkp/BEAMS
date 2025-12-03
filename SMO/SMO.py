@@ -1,5 +1,5 @@
 import numpy as np
-
+    
 class SVM:
     def __init__(self, X, y, C=1, kernel='linear', b=0, max_iter=300, tol=1e-5, eps=1e-8):
         self.X = X
